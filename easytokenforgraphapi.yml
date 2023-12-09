@@ -1,0 +1,38 @@
+name: Use Azure CLI to get token for MSGraph API
+
+on:
+  workflow_dispatch:
+  # push:
+  #   branches: ["main"]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+
+      # Checkout code
+    - uses: actions/checkout@main
+
+      # Log into Azure with OIDC
+    - uses: azure/login@v1
+      with:
+        client-id: ${{ secrets.AZURE_UAMI_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        enable-AzPSSession: true
+               
+    - name: MS Graph
+      shell: pwsh
+      run: |
+        $accessTokenString = (az account get-access-token --resource-type ms-graph | ConvertFrom-Json).accesstoken
+        # Unfortunately, Azure PowerShell is unavailable in pwsh shell; it's available only in azure/powershell action
+        # $accessTokenString = (Get-AzAccessToken -ResourceTypeName MSGraph).Token
+        $accessToken = ConvertTo-SecureString -String $accessTokenString -AsPlainText -Force
+        Connect-MgGraph -AccessToken $accessToken -NoWelcome
+        Get-MgContext
+        Get-MgGroup | Select-Object DisplayName -First 3 | ConvertTo-Json
+        Disconnect-MgGraph | Out-Null
